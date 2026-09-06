@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from typing import AsyncGenerator
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from app.core.config import settings
@@ -52,9 +52,10 @@ class TimestampMixin:
 
 
 class TenantMixin:
-    """Enforces multi-tenancy isolation on entities."""
+    """Enforces multi-tenancy isolation on entities with foreign key link."""
     organization_id: Mapped[str] = mapped_column(
         String(36),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
     )

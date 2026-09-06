@@ -19,38 +19,31 @@ def _normalize_vector(vec: List[float]) -> List[float]:
 def compute_deterministic_dense_vector(text: str, dim: int = VECTOR_DIM) -> List[float]:
     """
     Generates a dense unit-normalized semantic vector for text.
-    Combines subword n-grams and token hash buckets with tf-idf-like weighting.
+    Uses positive frequency hashing over unigrams, bigrams, and character trigrams.
     """
     clean = re.sub(r"[^\w\s]", " ", text.lower())
-    tokens = clean.split()
+    tokens = [t for t in clean.split() if len(t) > 1]
     if not tokens:
         return [0.0] * dim
 
     vec = [0.0] * dim
 
-    # Add unigram and bigram frequency hashes
     for i, token in enumerate(tokens):
         # Unigram hash
-        h = int(hashlib.md5(token.encode("utf-8")).hexdigest(), 16)
-        idx = h % dim
-        sign = 1.0 if (h >> 8) % 2 == 0 else -1.0
-        vec[idx] += sign * (1.0 + 1.0 / (len(token) + 1))
+        h = int(hashlib.md5(token.encode("utf-8")).hexdigest()[:8], 16)
+        vec[h % dim] += 1.0 + (1.0 / (len(token) + 1))
 
         # Bigram hash
         if i < len(tokens) - 1:
             bigram = f"{token}_{tokens[i+1]}"
-            hb = int(hashlib.sha256(bigram.encode("utf-8")).hexdigest(), 16)
-            b_idx = hb % dim
-            b_sign = 1.0 if (hb >> 8) % 2 == 0 else -1.0
-            vec[b_idx] += b_sign * 1.5
+            hb = int(hashlib.sha256(bigram.encode("utf-8")).hexdigest()[:8], 16)
+            vec[hb % dim] += 1.5
 
-        # Character trigrams for morphological similarity
+        # Character trigrams for morphological root matching
         for j in range(len(token) - 2):
             trigram = token[j:j+3]
-            ht = int(hashlib.md5(trigram.encode("utf-8")).hexdigest()[:8], 16)
-            t_idx = ht % dim
-            t_sign = 1.0 if (ht >> 4) % 2 == 0 else -1.0
-            vec[t_idx] += t_sign * 0.4
+            ht = int(hashlib.md5(trigram.encode("utf-8")).hexdigest()[:6], 16)
+            vec[ht % dim] += 0.3
 
     return _normalize_vector(vec)
 
@@ -75,7 +68,7 @@ async def get_embedding(text: str) -> List[float]:
                     data = res.json()
                     return data["data"][0]["embedding"]
         except Exception:
-            pass  # Fallback to local dense vector
+            pass
 
     return compute_deterministic_dense_vector(text)
 

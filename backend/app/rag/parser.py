@@ -1,8 +1,16 @@
 import io
 import re
 from typing import List, Tuple
-import pypdf
-import docx
+
+try:
+    import pypdf
+except ImportError:
+    pypdf = None
+
+try:
+    import docx
+except ImportError:
+    docx = None
 
 
 class DocumentParser:
@@ -10,37 +18,55 @@ class DocumentParser:
     def parse_pdf(file_bytes: bytes) -> List[Tuple[str, int, str]]:
         """Extracts text pages from PDF bytes. Returns list of (page_text, page_number, section_title)."""
         results = []
-        reader = pypdf.PdfReader(io.BytesIO(file_bytes))
-        for idx, page in enumerate(reader.pages):
-            text = page.extract_text() or ""
-            text = text.strip()
-            if text:
-                first_line = text.split("\n")[0][:80]
-                results.append((text, idx + 1, first_line))
+        if pypdf is not None:
+            try:
+                reader = pypdf.PdfReader(io.BytesIO(file_bytes))
+                for idx, page in enumerate(reader.pages):
+                    text = page.extract_text() or ""
+                    text = text.strip()
+                    if text:
+                        first_line = text.split("\n")[0][:80]
+                        results.append((text, idx + 1, first_line))
+            except Exception:
+                pass
+
+        if not results:
+            # Fallback raw extraction
+            text_str = file_bytes.decode("utf-8", errors="ignore")
+            results = DocumentParser.parse_text(text_str)
+
         return results
 
     @staticmethod
     def parse_docx(file_bytes: bytes) -> List[Tuple[str, int, str]]:
         """Extracts text from DOCX bytes. Returns list of (paragraph_text, page_estimate, section_title)."""
-        doc = docx.Document(io.BytesIO(file_bytes))
         results = []
-        current_section = "General"
-        buffer = []
-        
-        for p in doc.paragraphs:
-            text = p.text.strip()
-            if not text:
-                continue
-            if p.style.name.startswith("Heading"):
+        if docx is not None:
+            try:
+                doc = docx.Document(io.BytesIO(file_bytes))
+                current_section = "General"
+                buffer = []
+                for p in doc.paragraphs:
+                    text = p.text.strip()
+                    if not text:
+                        continue
+                    if p.style.name.startswith("Heading"):
+                        if buffer:
+                            results.append(("\n".join(buffer), 1, current_section))
+                            buffer = []
+                        current_section = text
+                    else:
+                        buffer.append(text)
+
                 if buffer:
                     results.append(("\n".join(buffer), 1, current_section))
-                    buffer = []
-                current_section = text
-            else:
-                buffer.append(text)
+            except Exception:
+                pass
 
-        if buffer:
-            results.append(("\n".join(buffer), 1, current_section))
+        if not results:
+            text_str = file_bytes.decode("utf-8", errors="ignore")
+            results = DocumentParser.parse_text(text_str)
+
         return results
 
     @staticmethod

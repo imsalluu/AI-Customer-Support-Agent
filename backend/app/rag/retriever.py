@@ -22,7 +22,7 @@ class KnowledgeRetriever:
         org_id: str,
         query: str,
         top_k: int = 4,
-        min_similarity: float = 0.25,
+        min_similarity: float = 0.05,
     ) -> RetrievedContext:
         """Retrieves top matching knowledge chunks with exact citations."""
         query_vec = await get_embedding(query)
